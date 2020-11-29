@@ -43,18 +43,12 @@ const byte ESTADO_CANCELADO = 7;
 String listaOperacoes[] = {"10 Minutos", "15 Minutos", "30 Minutos", "45 Minutos"};
 
 byte modoOperacao = OP_10MIN;
+byte tempoOperacao = 10;
 
 boolean abertaFechada = true;
 
-////////////////////////////////
-
-volatile boolean buttonPressed = false;
-volatile boolean paused = false;
-
-////////////////////////////////
-byte tempoOperacao = 10;
-int contador = 0;
-int rotacaoMotor = 0;
+byte contador = 0;
+byte rotacaoMotorMax = 10;
 
 volatile byte statusAtualSecagem = ESTADO_DISPONIVEL;
 
@@ -202,7 +196,7 @@ void inicializaSecagem()
 //Método que liga o motor.
 void ligaMotor()
 {
-    for (rotacaoMotor = 0; rotacaoMotor < 10; rotacaoMotor++)
+    for (int rotacaoMotor = 0; rotacaoMotor < rotacaoMotorMax; rotacaoMotor++)
     {
         analogWrite(motorMaquina, rotacaoMotor);
         delay(10);
@@ -211,11 +205,12 @@ void ligaMotor()
 //Método que desliga o motor.
 void desligaMotor()
 {
-    for (rotacaoMotor = 9; rotacaoMotor >= 0; rotacaoMotor--)
+    for (int rotacaoMotor = rotacaoMotorMax; rotacaoMotor >= 0; rotacaoMotor--)
     {
         analogWrite(motorMaquina, rotacaoMotor);
         delay(10);
     }
+    analogWrite(motorMaquina, 0);
 }
 
 void cancelarProcesso()

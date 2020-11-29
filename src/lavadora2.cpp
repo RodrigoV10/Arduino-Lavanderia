@@ -3,9 +3,10 @@
 #include <LiquidCrystal.h>
 
 #define pinButtonStart 2
+#define pinButtonPause 3
 #define motorMaquina 10
 
-LiquidCrystal lcd(11, 3, 4, 5, 6, 7);
+LiquidCrystal lcd(11, 9, 4, 5, 6, 7);
 
 //Código enviada pela máquina quando estiver livre
 const char LS_LIBERADO = 'd';
@@ -21,23 +22,40 @@ const char R_FECHADO = 'f';
 //p: Indica para a máquina para ele entrar em modo espera, pois foi realizado um pedido de uso da máquina.
 const char LS_MODO_ESPERA = 'p';
 
-volatile boolean buttonPressed = false;
+//################################
+//Operações de Lavagem
+//################################
+const byte OP_RAPIDA = 0;
+const byte OP_DELICADA = 1;
+const byte OP_NORMAL = 2;
+const byte OP_CENTRIG = 3;
+
+const byte ESTADO_DISPONIVEL = 0;
+const byte ESTADO_ESPERA = 1;
+const byte ESTADO_SEL_LAVAGEM = 2;
+const byte ESTADO_PRE_OPERANDO = 3;
+const byte ESTADO_OPERANDO = 3;
+const byte ESTADO_FINALIZADO = 4;
+const byte ESTADO_PRE_CANCELADO = 5;
+const byte ESTADO_CANCELADO = 6;
+
+String listaOperacoes[] = {"Rapida", "Delicada", "Normal", "Centrifugacao"};
+
+byte modoOperacao = OP_RAPIDA;
+
+byte tempoOperacao = 10;
 
 boolean abertaFechada = true;
-boolean disponivel = true;
-boolean emEspera = false;
-boolean emUso = false;
-boolean lcdDisponivel = true;
-boolean ligarMaquina = false;
-boolean motorLigado = true;
+
+byte contador = 0;
+byte rotacaoMotorMax = 0;
+
+volatile byte statusAtualLavagem = ESTADO_DISPONIVEL;
 
 //Define que recebeu um evento que abertua ou fechamendo da loja
 boolean trocarStatusAbertaFechada = false;
 //Define quando o arduino deve ficar no modo inativo, bloqueando os botões
 boolean desligado = false;
-
-int contador = 0;
-int rotacaoMotor = 0;
 
 void setup()
 {
@@ -47,111 +65,239 @@ void setup()
     lcd.setCursor(0, 0);
 
     pinMode(pinButtonStart, INPUT_PULLUP);
+    pinMode(pinButtonPause, INPUT_PULLUP);
     pinMode(motorMaquina, OUTPUT);
 
     attachInterrupt(digitalPinToInterrupt(pinButtonStart), pressButton, FALLING);
+    attachInterrupt(digitalPinToInterrupt(pinButtonPause), pressPause, FALLING);
 
     Wire.begin(5);
     Wire.onRequest(requestEvent);
     Wire.onReceive(receiveEvent);
+
+    inicio();
 }
 
 void loop()
 {
-    //Apenas se a Lavanderia está aberta
-    if (abertaFechada == true)
+    if (statusAtualLavagem == ESTADO_FINALIZADO)
     {
-        //Caso esteja disponivel, exibe na tela
-        if (disponivel == true && lcdDisponivel == true)
-        {
-            lcd.clear();
-            lcd.setCursor(0, 0);
-            lcd.print("Disponivel");
-            lcdDisponivel = false;
-        }
-        //Se a maquina está em espera
-        if (emEspera == true)
-        {
-            //Se pressionar o Botão, Começa a Lavar
-            if (buttonPressed == true)
-            {
-                ligarMaquina = true;
-                if (motorLigado == true)
-                {
-                    ligaMotor();
-                    motorLigado = false;
-                }
-                //Começa o Ciclo de lavagem
-                cicloLavagem();
-            }
-        }
+        delay(5000);
+        lcd.clear();
+        inicio();
     }
-    //Caso a Lavanderia feche, mas ainda esteja em uso, continua lavando.
-    if (abertaFechada == false && emUso == true)
+    if (statusAtualLavagem == ESTADO_CANCELADO)
     {
-        cicloLavagem();
+        delay(2000);
+        lcd.clear();
+        inicio();
     }
-    if (trocarStatusAbertaFechada)
+    if (statusAtualLavagem == ESTADO_OPERANDO)
     {
-        trocarStatusAbertaFechada = false;
-        if (abertaFechada)
+        contador++;
+        if (contador > tempoOperacao)
         {
-            lcd.clear();
-            lcd.setCursor(0, 0);
-            lcd.print("Disponivel");
-            lcdDisponivel = false;
-            desligado = false;
+            finalizarProcesso();
         }
         else
         {
             lcd.clear();
-            desligado = true;
+            lcd.setCursor(0, 0);
+            lcd.print(String(contador) + " min");
+            delay(1000);
         }
+    }
+    if (statusAtualLavagem == ESTADO_PRE_CANCELADO)
+    {
+        desligaMotor();
+        cancelarProcesso();
     }
 
-    delay(100);
-}
-//Método que faz a Maquina Lavar
-void cicloLavagem()
-{
-    if (ligarMaquina == true)
+    if (statusAtualLavagem == ESTADO_PRE_OPERANDO)
     {
-        //Diz que a maquina está em uso.
-        emUso == true;
-        if (contador < 3)
+        delay(100);
+        ligaMotor();
+        lcd.clear();
+        statusAtualLavagem = ESTADO_OPERANDO;
+    }
+    //Faz a validação da loja aberta ou fechada
+    if (statusAtualLavagem == ESTADO_DISPONIVEL && trocarStatusAbertaFechada)
+    {
+        trocarStatusAbertaFechada = false;
+        if (abertaFechada)
         {
-            lcd.clear();
-            lcd.setCursor(0, 0);
-            lcd.print("Lavando");
-            Serial.println("Lavando!");
-            contador++;
-            delay(1000);
+            inicio();
         }
-        if (contador > 2)
+        else
         {
-            contador = 0;
-            emEspera = false;
-            ligarMaquina = false;
-            disponivel = true;
-            lcdDisponivel = true;
-            buttonPressed = false;
-            motorLigado = true;
-            lcd.clear();
-            lcd.setCursor(0, 0);
-            lcd.println("Finalizada");
-            desligaMotor();
-            //Diz que a maquina não está em uso.
-            emUso = false;
-            delay(1000);
+            encerrarAtividades();
         }
     }
 }
+
+void inicio()
+{
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Disponivel");
+    desligado = false;
+    statusAtualLavagem = ESTADO_DISPONIVEL;
+}
+
+void encerrarAtividades()
+{
+    lcd.clear();
+    desligado = true;
+}
+
+void inicializaModoEspera()
+{
+    statusAtualLavagem = ESTADO_ESPERA;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Aguardando");
+}
+
+void inicializaModoLavagem()
+{
+    statusAtualLavagem = ESTADO_SEL_LAVAGEM;
+    modoOperacao = 0;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Modo");
+    lcd.setCursor(0, 1);
+    lcd.print(listaOperacoes[modoOperacao]);
+}
+
+void inicializaLavagem()
+{
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Iniciando...");
+    contador = 0;
+    switch (modoOperacao)
+    {
+    case OP_RAPIDA:
+        tempoOperacao = 10;
+        rotacaoMotorMax = 20;
+        break;
+    case OP_DELICADA:
+        tempoOperacao = 40;
+        rotacaoMotorMax = 10;
+        break;
+    case OP_NORMAL:
+        tempoOperacao = 40;
+        rotacaoMotorMax = 20;
+        break;
+    case OP_CENTRIG:
+        tempoOperacao = 15;
+        rotacaoMotorMax = 25;
+        break;
+    }
+    statusAtualLavagem = ESTADO_PRE_OPERANDO;
+}
+
+//Método que liga o motor.
+void ligaMotor()
+{
+    for (int rotacaoMotor = 0; rotacaoMotor < rotacaoMotorMax; rotacaoMotor++)
+    {
+        analogWrite(motorMaquina, rotacaoMotor);
+        delay(10);
+    }
+}
+//Método que desliga o motor.
+void desligaMotor()
+{
+    for (int rotacaoMotor = rotacaoMotorMax; rotacaoMotor >= 0; rotacaoMotor--)
+    {
+        analogWrite(motorMaquina, rotacaoMotor);
+        delay(10);
+    }
+    analogWrite(motorMaquina, 0);
+}
+
+void cancelarProcesso()
+{
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Cancelado");
+    statusAtualLavagem = ESTADO_CANCELADO;
+}
+
+void finalizarProcesso()
+{
+    statusAtualLavagem = ESTADO_FINALIZADO;
+    desligaMotor();
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Encerrado");
+}
+
+//################################
+//Funções Auxiliares
+//################################
+void trocarLista(String lista[], byte index, String texto)
+{
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(texto);
+    lcd.setCursor(0, 1);
+    lcd.print(lista[index]);
+}
+
+//################################
+//Funções de Botões
+//################################
+//Método ao pressionar o botão de iniciar
+void pressButton()
+{
+    if (desligado)
+    {
+        return;
+    }
+    switch (statusAtualLavagem)
+    {
+    case ESTADO_ESPERA: //Inicia a operação de espera
+        inicializaModoLavagem();
+        break;
+    case ESTADO_SEL_LAVAGEM: //Inicia a lavagem
+        inicializaLavagem();
+        break;
+    case ESTADO_OPERANDO: //Cancela o processo
+        statusAtualLavagem = ESTADO_PRE_CANCELADO;
+        break;
+    }
+}
+//Método ao pressionar o botão de pausar a lavagem
+void pressPause()
+{
+    if (desligado)
+    {
+        return;
+    }
+    switch (statusAtualLavagem)
+    {
+    case ESTADO_SEL_LAVAGEM: //Inicia a operação de espera
+        modoOperacao++;
+        if (modoOperacao >= (sizeof(listaOperacoes) / sizeof(listaOperacoes[0])))
+        {
+            modoOperacao = 0;
+        }
+        trocarLista(listaOperacoes, modoOperacao, "Modo");
+        break;
+    }
+}
+
+//################################
+//Funções de Eventos
+//################################
 //Método chamado ao receber solicitação do mestre.
 void requestEvent()
 {
     String msg;
     //Envia uma mensagem quando está ou não disponível para uso
-    if (!disponivel)
+    if (statusAtualLavagem != ESTADO_DISPONIVEL)
     {
         msg = String(G_SEM_ALTERACAO);
         char buffer[32];
@@ -197,31 +343,7 @@ void receiveEvent(int i)
         trocarStatusAbertaFechada = true;
         break;
     case LS_MODO_ESPERA: //Caso receba 'p', coloca a maquina em espera.
-        emEspera = true;
-        disponivel = false;
+        inicializaModoEspera();
         break;
     }
-}
-//Método que liga o motor.
-void ligaMotor()
-{
-    for (rotacaoMotor = 0; rotacaoMotor < 10; rotacaoMotor++)
-    {
-        analogWrite(motorMaquina, rotacaoMotor);
-        delay(10);
-    }
-}
-//Método que desliga o motor.
-void desligaMotor()
-{
-    for (rotacaoMotor = 9; rotacaoMotor >= 0; rotacaoMotor--)
-    {
-        analogWrite(motorMaquina, rotacaoMotor);
-        delay(10);
-    }
-}
-//Método ao pressionar o botão
-void pressButton()
-{
-    buttonPressed = true;
 }

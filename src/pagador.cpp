@@ -217,7 +217,7 @@ void finalizarProcesso(String msg)
 
     case PP_LAVASECA:
         lcd.print("Lavadora " + String(msg.charAt(2)));
-        lcd.setCursor(1, 0);
+        lcd.setCursor(0, 1);
         lcd.print("Secadora " + String(msg.charAt(3)));
         break;
 
