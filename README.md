@@ -24,6 +24,19 @@ Semelhantes, porém com algumas particularidades. A controladora da máquina de 
 
 Ambos os tipos de placas permitem e seleção de modos de operação, assim como o cancelamento do processo.
 
+## Códigos de Comunicação
+* #: Indica o término da mensagem.
+* $: Indica que não houve mudança de estado naquela placa.
+* a: Abertura da lavanderia.
+* f: Fechamento da lavanderia.
+* p: Novo pedido realizado. Deve ser seguido o tipo de serviço solicitado.
+* l: Solicita um serviço de lavagem.
+* s: Solicita um serviço de secagem.
+* t: Solicita um serviço de lava e seca.
+* y: Sinaliza booleano “sim”.
+* n: Sinaliza um booleano “não”.
+* d: Sinaliza o comunicador que determinado serviço está disponível.
+
 # Sobre
 
 Esse projeto foi elaborado para a disciplina de *Sistemas Embarcados e Tempo Real* da faculdade de Ciência da Computação na universidade [Unijuí](www.unijui.edu.br/).

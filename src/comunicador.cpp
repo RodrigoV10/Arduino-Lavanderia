@@ -51,7 +51,7 @@ const char R_FECHADO = 'f';
 //------------------Pagamento------------------
 //Resposta que será enviada para a máquina de pagamento, quando for perguntado
 //se determinadas máquinas estão livres
-const char P_SIM = 's';
+const char P_SIM = 'y';
 const char P_NAO = 'n';
 //------------------Lava/Seca------------------
 //Indica para determinada máquina para que ela entre em modo espera

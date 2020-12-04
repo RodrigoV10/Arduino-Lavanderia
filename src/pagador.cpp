@@ -24,7 +24,7 @@ const char R_ABERTO = 'a';
 //Recebido quando a lavanderia estiver fechada
 const char R_FECHADO = 'f';
 //Respostas quanto a disponibilidade de máquinas
-const char P_SIM = 's';
+const char P_SIM = 'y';
 const char P_NAO = 'n';
 //################################
 //Códigos de Espera
